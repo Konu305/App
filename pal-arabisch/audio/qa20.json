@@ -1,0 +1,22 @@
+[
+  {"id":"L01_01","purpose":"Begrüßung","arabic":"مرحبا","de":"Hallo"},
+  {"id":"L13_01","purpose":"Smalltalk und Vokalqualität","arabic":"كيفك؟","de":"Wie geht es dir?"},
+  {"id":"L01_03","purpose":"Höfliche Begrüßung","arabic":"السلام عليكم","de":"Friede sei mit dir"},
+  {"id":"L01_12","purpose":"Höflichkeit","arabic":"لو سمحت","de":"Bitte oder Entschuldigung"},
+  {"id":"L02_03","purpose":"Rettungssatz","arabic":"ما فهمت","de":"Ich habe nicht verstanden"},
+  {"id":"L02_05","purpose":"Rettungssatz","arabic":"ممكن تعيد؟","de":"Kannst du das wiederholen?"},
+  {"id":"L02_07","purpose":"Sprechtempo","arabic":"احكي شوي شوي","de":"Sprich etwas langsamer"},
+  {"id":"L02_08","purpose":"Sprechtempo","arabic":"ممكن تحكي أبطأ؟","de":"Kannst du langsamer sprechen?"},
+  {"id":"L03_01","purpose":"Kiosk Wasser","arabic":"بدّي مي","de":"Ich möchte Wasser"},
+  {"id":"L03_02","purpose":"Kiosk ganzer Satz","arabic":"بدّي قنينة مي","de":"Ich möchte eine Flasche Wasser"},
+  {"id":"L03_16","purpose":"Preisfrage","arabic":"قديش؟","de":"Wie viel?"},
+  {"id":"L04_01","purpose":"Qaf urban","arabic":"قهوة","de":"Kaffee"},
+  {"id":"L04_05","purpose":"Kaffee bestellen","arabic":"بدّي قهوة","de":"Ich möchte einen Kaffee"},
+  {"id":"L04_08","purpose":"Bestellwunsch","arabic":"بدون سكر","de":"Ohne Zucker"},
+  {"id":"L04_18","purpose":"Rechnung","arabic":"الحساب لو سمحت","de":"Die Rechnung bitte"},
+  {"id":"L08_01","purpose":"Fragewort","arabic":"وين؟","de":"Wo?"},
+  {"id":"L08_17","purpose":"Richtung","arabic":"قديش بعيد؟","de":"Wie weit ist es?"},
+  {"id":"L09_02","purpose":"Transport","arabic":"لوين رايح؟","de":"Wohin fährst du?"},
+  {"id":"L14_04","purpose":"Studium","arabic":"بدرس علم النفس","de":"Ich studiere Psychologie"},
+  {"id":"L14_16","purpose":"Selbstbeschreibung","arabic":"بحكي شوي عربي","de":"Ich spreche ein bisschen Arabisch"}
+]
