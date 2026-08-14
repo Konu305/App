@@ -26,7 +26,8 @@ from pathlib import Path
 
 REPO_RAW = "https://raw.githubusercontent.com/Konu305/App/main/pal-arabisch"
 PAYLOAD_FILES = ["payload1.js", "payload2.js", "payload3.js"]
-SAMPLE_RATE = 48000
+OUTPUT_SAMPLE_RATE = 48000
+REFERENCE_SAMPLE_RATE = 16000
 
 
 def ensure_packages():
@@ -37,11 +38,24 @@ def ensure_packages():
         "requests",
     ]
     subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", *packages])
-    # MiraTTS is installed from its upstream repository as recommended by Sofelia.
     subprocess.check_call([
         sys.executable, "-m", "pip", "install", "-q",
         "git+https://github.com/ysharma3501/MiraTTS.git"
     ])
+
+
+def prepare_reference(reference_file, work_dir):
+    """Trim silence and convert phone audio to Sofelia's preferred 16 kHz mono WAV."""
+    work_dir.mkdir(parents=True, exist_ok=True)
+    out = work_dir / "reference_sofelia.wav"
+    cmd = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-i", str(reference_file),
+        "-af", "silenceremove=start_periods=1:start_duration=0.15:start_threshold=-40dB:stop_periods=-1:stop_duration=0.35:stop_threshold=-40dB,loudnorm=I=-18:TP=-2:LRA=7",
+        "-ac", "1", "-ar", str(REFERENCE_SAMPLE_RATE), "-c:a", "pcm_s16le", str(out)
+    ]
+    subprocess.check_call(cmd)
+    return out
 
 
 def download_course():
@@ -53,8 +67,6 @@ def download_course():
         response = requests.get(url, timeout=60)
         response.raise_for_status()
         text = response.text
-
-        # Each payload file appends one quoted Base64 chunk.
         matches = re.findall(r'\+\s*"([A-Za-z0-9+/=]+)"', text)
         if not matches:
             raise RuntimeError(f"Could not extract Base64 data from {filename}")
@@ -116,16 +128,15 @@ def generate_audio(reference_file, phrases, output_dir, limit):
 
         if normal_path.exists():
             audio, sr = sf.read(normal_path)
-            if sr != SAMPLE_RATE:
-                audio = librosa.resample(audio, orig_sr=sr, target_sr=SAMPLE_RATE)
+            if sr != OUTPUT_SAMPLE_RATE:
+                audio = librosa.resample(audio, orig_sr=sr, target_sr=OUTPUT_SAMPLE_RATE)
         else:
             audio = tts.generate(phrase["arabic"], context_tokens)
-            sf.write(normal_path, audio, SAMPLE_RATE)
+            sf.write(normal_path, audio, OUTPUT_SAMPLE_RATE)
 
-        # Pitch-preserving slow version. rate < 1.0 means longer/slower.
         if not slow_path.exists():
             slow_audio = librosa.effects.time_stretch(audio.astype("float32"), rate=0.82)
-            sf.write(slow_path, slow_audio, SAMPLE_RATE)
+            sf.write(slow_path, slow_audio, OUTPUT_SAMPLE_RATE)
 
         manifest[phrase_id] = {
             "normal": normal_name,
@@ -135,7 +146,6 @@ def generate_audio(reference_file, phrases, output_dir, limit):
         }
         completed += 1
 
-        # Write after every phrase so work survives an interrupted Colab session.
         (output_dir / "manifest.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2),
             encoding="utf-8"
@@ -171,8 +181,8 @@ def write_review_sheet(phrases, manifest, output_dir):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--reference", required=True, help="3-10 second Palestinian Arabic WAV/MP3/OGG")
-    parser.add_argument("--limit", type=int, default=200, help="Number of phrases to generate")
+    parser.add_argument("--reference", required=True, help="Palestinian Arabic WAV/MP3/OGG/M4A")
+    parser.add_argument("--limit", type=int, default=20, help="Number of phrases to generate. Start with 20 for QA.")
     parser.add_argument("--output", default="pal_audio", help="Output directory")
     parser.add_argument("--install", action="store_true", help="Install dependencies first")
     args = parser.parse_args()
@@ -185,6 +195,9 @@ def main():
         raise FileNotFoundError(reference_file)
 
     output_dir = Path(args.output)
+    prepared_reference = prepare_reference(reference_file, output_dir.parent / "reference_work")
+    print(f"Prepared reference: {prepared_reference} ({REFERENCE_SAMPLE_RATE} Hz mono)")
+
     levels = download_course()
     phrases = flatten_course(levels)
 
@@ -192,7 +205,7 @@ def main():
     print(f"Generating: {min(args.limit, len(phrases))}")
     print("Priority: beginner -> conversation -> grammar")
 
-    manifest = generate_audio(reference_file, phrases, output_dir, args.limit)
+    manifest = generate_audio(prepared_reference, phrases, output_dir, args.limit)
     write_review_sheet(phrases, manifest, output_dir)
 
     archive = shutil.make_archive(str(output_dir), "zip", root_dir=output_dir)
