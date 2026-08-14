@@ -9,11 +9,41 @@
   let flashIndex = 0;
   let quizScore = 0;
   let currentAudio = null;
+  let audioManifest = {};
 
   function escapeHtml(value = '') {
     return String(value).replace(/[&<>\"]/g, (char) => ({
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'
     })[char]);
+  }
+
+  function normalizePron(value = '') {
+    const rules = [
+      [/\bUeen\b/g, 'Ween'],
+      [/\bueen\b/g, 'ween'],
+      [/\bKiif\b/g, 'Keef'],
+      [/\bkiif\b/g, 'keef'],
+      [/\bAhue\b/g, 'Ahwe'],
+      [/\bahue\b/g, 'ahwe'],
+      [/\bUaahad\b/g, 'Waahad'],
+      [/\buaahad\b/g, 'waahad'],
+      [/\bUahde\b/g, 'Wahde'],
+      [/\buahde\b/g, 'wahde'],
+      [/\bUallah\b/g, 'Wallah'],
+      [/\buallah\b/g, 'wallah'],
+      [/\bUala\b/g, 'Wala'],
+      [/\buala\b/g, 'wala'],
+      [/\bU inta\b/g, 'W inta'],
+      [/\bU inti\b/g, 'W inti'],
+      [/\bU baadein\b/g, 'W baadein'],
+      [/\bU kaaset\b/g, 'W kaaset'],
+      [/\bAuual\b/g, 'Awwal'],
+      [/\bauual\b/g, 'awwal'],
+      [/\bDschiit\b/g, 'Dschiit']
+    ];
+    let out = String(value);
+    rules.forEach(([pattern, replacement]) => { out = out.replace(pattern, replacement); });
+    return out;
   }
 
   async function decodePayload() {
@@ -29,30 +59,52 @@
     return JSON.parse(text);
   }
 
+  async function loadAudioManifest() {
+    try {
+      const response = await fetch(`audio/manifest.json?v=${Date.now()}`, { cache: 'no-store' });
+      if (response.ok) audioManifest = await response.json();
+    } catch {
+      audioManifest = {};
+    }
+  }
+
   function flattenItems() {
     allItems = [];
     levels.forEach((level) => {
       level.lessons.forEach((lesson) => {
         lesson.items.forEach((item) => {
-          allItems.push({ ...item, level: level.id, lessonTitle: lesson.title });
+          allItems.push({ ...item, pron: normalizePron(item.pron), level: level.id, lessonTitle: lesson.title });
         });
+        if (lesson.dialogue) {
+          lesson.dialogue = lesson.dialogue.map((line) => ({ ...line, pron: normalizePron(line.pron) }));
+        }
       });
     });
   }
 
+  function audioEntry(id) {
+    return id && audioManifest[id] ? audioManifest[id] : null;
+  }
+
+  function audioBadge(item) {
+    const entry = audioEntry(item.id);
+    return entry?.normal ? '<span class="audioSource real">PAL Audio</span>' : '<span class="audioSource fallback">Systemstimme</span>';
+  }
+
   function renderPhrase(item) {
-    const search = escapeHtml(`${item.arabic} ${item.pron} ${item.de} ${item.tag || ''}`.toLowerCase());
+    const pron = normalizePron(item.pron);
+    const search = escapeHtml(`${item.arabic} ${pron} ${item.de} ${item.tag || ''}`.toLowerCase());
     const isFav = favorites.has(item.id);
     return `<article class="phrase" data-search="${search}" data-id="${escapeHtml(item.id)}">
       <div class="phraseText">
         <div class="arabic">${escapeHtml(item.arabic)}</div>
-        <div class="pron">${escapeHtml(item.pron)}</div>
+        <div class="pron">${escapeHtml(pron)}</div>
         <div class="translation">${escapeHtml(item.de)}</div>
-        <div class="tag">${escapeHtml(item.tag || '')}</div>
+        <div class="tag">${escapeHtml(item.tag || '')} ${audioBadge(item)}</div>
       </div>
       <div class="phraseActions">
-        <button type="button" class="say" data-text="${escapeHtml(item.arabic)}" aria-label="Anhören">🔊</button>
-        <button type="button" class="slow" data-text="${escapeHtml(item.arabic)}" aria-label="Langsam anhören">🐢</button>
+        <button type="button" class="say" data-id="${escapeHtml(item.id)}" data-text="${escapeHtml(item.arabic)}" aria-label="Anhören">🔊</button>
+        <button type="button" class="slow" data-id="${escapeHtml(item.id)}" data-text="${escapeHtml(item.arabic)}" aria-label="Langsam anhören">🐢</button>
         <button type="button" class="fav ${isFav ? 'active' : ''}" data-id="${escapeHtml(item.id)}" aria-label="Favorit">${isFav ? '★' : '☆'}</button>
       </div>
     </article>`;
@@ -63,7 +115,7 @@
     return `<div class="dialogueBox"><h4>Mini Gespräch</h4>${dialogue.map((line) => `
       <div class="bubble ${line.role === 'you' ? 'you' : ''}">
         <div class="arabic">${escapeHtml(line.arabic)}</div>
-        <div class="pron">${escapeHtml(line.pron)}</div>
+        <div class="pron">${escapeHtml(normalizePron(line.pron))}</div>
         <div>${escapeHtml(line.de)}</div>
         <button type="button" class="say miniAudio" data-text="${escapeHtml(line.arabic)}">🔊 Anhören</button>
       </div>`).join('')}</div>`;
@@ -122,12 +174,12 @@
   }
 
   function loadFavorites() {
-    try { favorites = new Set(JSON.parse(localStorage.getItem('pal_favs_v4') || '[]')); }
+    try { favorites = new Set(JSON.parse(localStorage.getItem('pal_favs_v5') || '[]')); }
     catch { favorites = new Set(); }
   }
 
   function saveFavorites() {
-    try { localStorage.setItem('pal_favs_v4', JSON.stringify([...favorites])); } catch {}
+    try { localStorage.setItem('pal_favs_v5', JSON.stringify([...favorites])); } catch {}
   }
 
   function toggleFavorite(id) {
@@ -182,17 +234,17 @@
     return voices[index] || voices.find((voice) => /^ar(?:-|$)/i.test(voice.lang)) || null;
   }
 
+  function countRealAudio() {
+    return Object.values(audioManifest).filter((entry) => entry && entry.normal).length;
+  }
+
   function updateAudioStatus(message = '') {
     const status = $('audioStatus');
-    if (!('speechSynthesis' in window)) {
-      status.className = 'status';
-      status.innerHTML = '<b>Audio nicht verfügbar.</b> Dieser Browser stellt keine Sprachsynthese bereit.';
-      return;
-    }
-    const arabic = voices.filter((voice) => /^ar(?:-|$)/i.test(voice.lang));
+    const realCount = countRealAudio();
     const voice = selectedVoice();
-    status.className = `status ${arabic.length ? 'good' : ''}`;
-    status.innerHTML = `<b>Audio bereit.</b> ${arabic.length} arabische Stimme${arabic.length === 1 ? '' : 'n'} gefunden.${voice ? ` Aktiv: ${escapeHtml(voice.name)} (${escapeHtml(voice.lang)}).` : ''}${message ? ` ${escapeHtml(message)}` : ''}`;
+    const arabic = voices.filter((v) => /^ar(?:-|$)/i.test(v.lang));
+    status.className = `status ${realCount || arabic.length ? 'good' : ''}`;
+    status.innerHTML = `<b>Audio.</b> ${realCount} echte palästinensische Aufnahmen hinterlegt. ${arabic.length} arabische Systemstimme${arabic.length === 1 ? '' : 'n'} als Fallback.${voice ? ` Fallback: ${escapeHtml(voice.name)} (${escapeHtml(voice.lang)}).` : ''}${message ? ` ${escapeHtml(message)}` : ''}`;
   }
 
   function stopSpeech() {
@@ -205,9 +257,20 @@
     }
   }
 
-  function speak(text, slow = false) {
+  function playFile(path, slow = false) {
+    stopSpeech();
+    const audio = new Audio(path);
+    currentAudio = audio;
+    if (slow) audio.playbackRate = 0.82;
+    audio.onplay = () => updateAudioStatus(slow ? 'Palästinensische Aufnahme langsam.' : 'Palästinensische Aufnahme läuft.');
+    audio.onended = () => { currentAudio = null; updateAudioStatus('Wiedergabe beendet.'); };
+    audio.onerror = () => { currentAudio = null; updateAudioStatus('Audiodatei konnte nicht geladen werden.'); };
+    audio.play().catch(() => updateAudioStatus('Safari hat die Wiedergabe blockiert. Bitte erneut tippen.'));
+  }
+
+  function speakSystem(text, slow = false) {
     if (!('speechSynthesis' in window)) {
-      updateAudioStatus('Sprachausgabe ist in diesem Browser nicht verfügbar.');
+      updateAudioStatus('Für diesen Satz ist noch keine echte Aufnahme vorhanden und die Systemstimme ist nicht verfügbar.');
       return;
     }
     stopSpeech();
@@ -221,18 +284,28 @@
     utterance.rate = slow ? Math.max(0.5, baseRate - 0.18) : baseRate;
     utterance.pitch = 1;
     utterance.volume = 1;
-    utterance.onstart = () => updateAudioStatus(slow ? 'Langsame Wiedergabe läuft.' : 'Wiedergabe läuft.');
+    utterance.onstart = () => updateAudioStatus('Systemstimme als Fallback.');
     utterance.onend = () => updateAudioStatus('Wiedergabe beendet.');
     utterance.onerror = (event) => updateAudioStatus(`Audiofehler: ${event.error || 'unbekannt'}.`);
     try { window.speechSynthesis.speak(utterance); }
     catch (error) { updateAudioStatus(`Audiofehler: ${error.message}.`); }
   }
 
+  function speak(text, slow = false, id = '') {
+    const entry = audioEntry(id);
+    const file = slow ? (entry?.slow || entry?.normal) : entry?.normal;
+    if (file) {
+      playFile(`audio/${file}`, slow && !entry?.slow);
+      return;
+    }
+    speakSystem(text, slow);
+  }
+
   function renderFlash() {
     if (!allItems.length) return;
     const item = allItems[flashIndex % allItems.length];
     $('cardAr').textContent = item.arabic;
-    $('cardPr').textContent = item.pron;
+    $('cardPr').textContent = normalizePron(item.pron);
     $('cardDe').textContent = item.de;
     $('cardDe').style.display = 'none';
     $('cardCount').textContent = `${flashIndex % allItems.length + 1} von ${allItems.length}`;
@@ -243,7 +316,7 @@
     const correct = allItems[Math.floor(Math.random() * allItems.length)];
     const distractors = allItems.filter((item) => item.id !== correct.id).sort(() => Math.random() - 0.5).slice(0, 3);
     const options = [correct, ...distractors].sort(() => Math.random() - 0.5);
-    $('quizPrompt').innerHTML = `<div class="arabic">${escapeHtml(correct.arabic)}</div><div class="pron">${escapeHtml(correct.pron)}</div><b>Was bedeutet das?</b>`;
+    $('quizPrompt').innerHTML = `<div class="arabic">${escapeHtml(correct.arabic)}</div><div class="pron">${escapeHtml(normalizePron(correct.pron))}</div><b>Was bedeutet das?</b>`;
     $('quizOptions').innerHTML = '';
     $('quizFeedback').textContent = '';
     options.forEach((item) => {
@@ -272,19 +345,22 @@
     document.querySelectorAll('[data-tool]').forEach((button) => button.addEventListener('click', () => showTool(button.dataset.tool)));
     $('search').addEventListener('input', filterSearch);
     $('voice').addEventListener('change', () => updateAudioStatus());
-    $('test').addEventListener('click', () => speak('مرحبا، كيفك؟ أنا بحكي عربي شوي', false));
-    $('slowTest').addEventListener('click', () => speak('مرحبا، كيفك؟ أنا بحكي عربي شوي', true));
+    $('test').addEventListener('click', () => speakSystem('مرحبا، كيفك؟ أنا بحكي عربي شوي', false));
+    $('slowTest').addEventListener('click', () => speakSystem('مرحبا، كيفك؟ أنا بحكي عربي شوي', true));
     $('stop').addEventListener('click', stopSpeech);
     $('cardReveal').addEventListener('click', () => { $('cardDe').style.display = $('cardDe').style.display === 'none' ? 'block' : 'none'; });
     $('cardNext').addEventListener('click', () => { flashIndex = (flashIndex + 1) % allItems.length; renderFlash(); });
-    $('cardSpeak').addEventListener('click', () => speak(allItems[flashIndex % allItems.length].arabic, false));
+    $('cardSpeak').addEventListener('click', () => {
+      const item = allItems[flashIndex % allItems.length];
+      speak(item.arabic, false, item.id);
+    });
     $('quizNext').addEventListener('click', newQuiz);
 
     document.addEventListener('click', (event) => {
       const say = event.target.closest('.say');
-      if (say) speak(say.dataset.text, false);
+      if (say) speak(say.dataset.text, false, say.dataset.id || '');
       const slow = event.target.closest('.slow');
-      if (slow) speak(slow.dataset.text, true);
+      if (slow) speak(slow.dataset.text, true, slow.dataset.id || '');
       const fav = event.target.closest('.fav');
       if (fav) toggleFavorite(fav.dataset.id);
     });
@@ -292,7 +368,8 @@
 
   async function boot() {
     try {
-      $('loadStatus').textContent = 'Kurs wird geladen.';
+      $('loadStatus').textContent = 'Kurs und Audio werden geladen.';
+      await loadAudioManifest();
       levels = await decodePayload();
       flattenItems();
       loadFavorites();
